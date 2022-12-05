@@ -1,0 +1,56 @@
+version: '3.8'
+
+networks:
+  ingestor: {}
+
+services:
+  feeder:
+    image: ubuntu
+    volumes: 
+    - ./feed:/feed
+    environment:
+      REDIS_HOST: redis
+    depends_on:
+    - redis
+    - database
+    networks:
+    - ingestor
+    command: bash /feed
+
+  ingestor:
+    image: jeffail/benthos
+    volumes: 
+    - ./benthos.yaml:/benthos.yaml
+    environment:
+      REDIS_URL: redis://redis:6379
+      POSTGRES_URL: postgres://user:pass@database/db?sslmode=disable
+    ports:
+    - 4195:4195
+    - 4190:4190
+    depends_on:
+    - redis
+    - database
+    networks:
+    - ingestor
+
+  database:
+    image: postgres:alpine
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+    networks:
+    - ingestor
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -ntpl  | grep LISTEN"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 50s
+  
+  redis:
+    image: redis:alpine
+    networks:
+    - ingestor
+
+      

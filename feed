@@ -1,0 +1,31 @@
+#!/bin/bash
+
+if [ -z "${REDIS_HOST}" ]; then
+  echo "REDIS_HOST wasn't declared"
+  exit 1
+fi
+
+apt update
+apt install -y redis
+
+i=1
+s=0
+
+declare -a statuses=(FAILED APPROVED PENDING DECLINED)
+
+while [ true ]; do
+  orderid=$i
+  orderdt=`date +"%Y-%m-%d %T"`
+  orderst=${statuses[$s]}
+
+  if [ $s -ge 3 ]; then
+    s=0
+  else
+    s=$((s+1));
+  fi
+  
+  redis-cli -h ${REDIS_HOST} PUBLISH orders "{\"id\": ${orderid}, \"status\":\"${orderst}\", \"amount\": 1, \"created_at\": \"${orderdt}\"}"
+
+  sleep 1;
+  i=$((i+1));
+done

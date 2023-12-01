@@ -1,0 +1,30 @@
+logger:
+  level: ALL
+
+http:
+  enabled: true
+  root_path: /benthos
+  debug_endpoints: true
+
+input:
+  label: ""
+  file:
+    paths:
+    - /tmp/data.csv
+    codec: csv
+
+pipeline:
+  processors:
+  - log:
+      level: INFO
+      message: a message received
+      fields_mapping: |
+        root.name = this.name
+        root.age = this.age
+
+output:
+  label: "output"
+  file:
+    path: /tmp/data.txt
+    codec: lines
+

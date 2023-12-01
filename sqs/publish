@@ -1,0 +1,10 @@
+#!/bin/bash
+
+export AWS_DEFAULT_REGION=elasticmq
+export AWS_ACCESS_KEY_ID=elasticmq
+export AWS_SECRET_ACCESS_KEY=elasticmq
+
+aws sqs send-message \
+  --endpoint-url http://localhost:9324 \
+  --queue-url http://localhost:9324/000000000000/notifications \
+  --message-body '{"foo":"bar"}'

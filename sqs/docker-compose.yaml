@@ -1,0 +1,50 @@
+version: '3.8'
+
+networks:
+  ingestor: {}
+
+services:
+  elasticmq:
+    image: softwaremill/elasticmq-native
+    ports:
+    - 9324:9324
+    - 9325:9325
+    networks:
+    - ingestor
+    volumes:
+    - ./elasticmq.conf:/opt/elasticmq.conf
+    restart: on-failure:30
+
+  database:
+    image: postgres:alpine
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+    networks:
+    - ingestor
+    healthcheck:
+      test: ["CMD-SHELL", "netstat -ntpl  | grep LISTEN"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 50s
+
+  ingestor:
+    image: jeffail/benthos
+    volumes: 
+    - ./benthos.yaml:/benthos.yaml
+    environment:
+      AWS_ACCESS_KEY_ID: elasticmq
+      AWS_SECRET_ACCESS_KEY: elasticmq
+      AWS_ENDPOINT: http://elasticmq:9324
+      AWS_SQS_URL: http://elasticmq:9324/queue/notifications
+      POSTGRES_URL: postgres://user:pass@database/db?sslmode=disable
+    ports:
+    - 4195:4195
+    - 4190:4190
+    depends_on:
+    - database
+    - elasticmq
+    networks:
+    - ingestor

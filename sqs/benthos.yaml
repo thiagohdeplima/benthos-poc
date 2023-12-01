@@ -1,0 +1,84 @@
+logger:
+  level: ALL
+
+http:
+  enabled: true
+  root_path: /benthos
+  debug_endpoints: true
+
+input:
+  label: input_sqs
+  aws_sqs:
+    region: us-east-1
+    url: ${AWS_SQS_URL}
+    endpoint: ${AWS_ENDPOINT}
+    credentials:
+      id: ${AWS_ACCESS_KEY_ID}
+      secret: ${AWS_SECRET_ACCESS_KEY}
+
+pipeline:
+  processors:
+  - sql_insert:
+      driver: postgres
+      dsn: "${POSTGRES_URL}"
+      table: orders
+      columns: [id, status, amount, created_at]
+      args_mapping: |
+        root = [
+          this.id,
+          this.status,
+          this.amount,
+          this.created_at
+        ]
+      suffix: ON CONFLICT(id) DO NOTHING
+      init_statement: |
+        CREATE TABLE IF NOT EXISTS orders (
+          id     INT           PRIMARY KEY,
+          status VARCHAR(255)  NOT NULL,
+          amount INT           NOT NULL,
+          created_at TIMESTAMP NOT NULL
+        );
+
+  - sql_insert:
+      driver: postgres
+      dsn: "${POSTGRES_URL}"
+      table: consolidated
+      columns: [status, amount, updated_at]
+      args_mapping: |
+        root = [
+          this.status,
+          this.amount,
+          this.created_at
+        ]
+      suffix: ON CONFLICT(status) DO NOTHING
+      init_statement: |
+        CREATE TABLE IF NOT EXISTS consolidated (
+          status     VARCHAR(255) NOT NULL UNIQUE,
+          amount     INT          NOT NULL,
+          updated_at TIMESTAMP    NOT NULL
+        );
+
+  - sql_raw:
+      driver: postgres
+      dsn: "${POSTGRES_URL}"
+      query: |
+        UPDATE consolidated
+        SET
+          amount = amount + (subquery.total + $4)
+        FROM (
+          SELECT
+            COALESCE(SUM(orders.amount), 0) as total
+          FROM orders
+          WHERE
+            created_at >= $3
+          AND
+            id <> $1
+        ) as subquery
+        WHERE status = $2
+        RETURNING *;
+      args_mapping: '[ this.id, this.status, this.created_at, this.amount ]'
+
+output:
+  label: "output_stdout_orders"
+  stdout:
+    codec: lines

@@ -1,0 +1,36 @@
+logger:
+  level: ALL
+
+http:
+  enabled: true
+  root_path: /benthos
+  debug_endpoints: true
+
+input:
+  label: "input_http_server"
+  http_server:
+    address: ""
+    path: /input
+    allowed_verbs:
+    - POST
+    timeout: 5s
+
+pipeline:
+  # curl \
+  #   -H "Content-Type: application/json" \
+  #   -X POST http://localhost:4195/input \
+  #   --data '{"id":"123", "person": {"name": "Thiago"}}'
+  processors:
+  - log:
+      level: INFO
+      message: a message received
+      fields_mapping: |
+        root.id = this.id
+        root.name = this.person.name
+
+output:
+  label: "output"
+  file:
+    path: /tmp/data.txt
+    codec: lines
+
